@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChronoSync | Modern Group Scheduling</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">ChronoSync</div>
+            <p class="subtitle">Drag to select availability. Timezones handle themselves.</p>
+            <h2 id="week-label" class="week-label">Week of...</h2>
+        </header>
+
+        <main>
+            <section class="controls-card glass">
+                <div class="user-info">
+                    <input type="text" id="username" placeholder="Enter your name..." class="glass-input">
+                    <div id="timezone-indicator" class="badge">Your Timezone: Detecting...</div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button id="copy-link" class="btn btn-secondary">Copy Share Link</button>
+                    <button id="copy-discord" class="btn btn-primary">Copy Discord Summary</button>
+                    <button id="clear-selection" class="btn btn-secondary">Clear All</button>
+                </div>
+            </section>
+
+            <section class="grid-card glass">
+                <div class="grid-scroll-container">
+                    <table id="availability-grid">
+                        <thead>
+                            <tr id="grid-header">
+                                <th class="time-col">TIME</th>
+                                <th>MON</th>
+                                <th>TUE</th>
+                                <th>WED</th>
+                                <th>THU</th>
+                                <th>FRI</th>
+                                <th>SAT</th>
+                                <th>SUN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="grid-body">
+                            <!-- JS will inject rows here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="side-by-side">
+                <section class="availability-card glass">
+                    <h3>Group Availability (Local Time)</h3>
+                    <div id="group-list" class="list-container">
+                        Waiting for others...
+                    </div>
+                </section>
+
+                <section class="timestamps-card glass">
+                    <h3>Discord Timestamps (Per User)</h3>
+                    <div id="timestamp-list" class="list-container">
+                        Select blocks to see codes...
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer>
+            <div class="status-indicator">
+                <span class="dot"></span> 
+                <span id="sync-status">Real-time Sync Active (Firebase Placeholder)</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Firebase Scripts (CDN) - Using global compat versions for file:// compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
