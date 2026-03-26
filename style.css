@@ -260,12 +260,12 @@ tbody tr {
 }
 
 .group-grid-container .name-tag {
-    color: #000;
+    color: #fff;
     text-shadow: 
-        -1px -1px 0 #fff,  
-         1px -1px 0 #fff,
-        -1px  1px 0 #fff,
-         1px  1px 0 #fff;
+        -1px -1px 0 #000,  
+         1px -1px 0 #000,
+        -1px  1px 0 #000,
+         1px  1px 0 #000;
     font-weight: 600;
     border-radius: 4px;
     padding: 2px 4px;
