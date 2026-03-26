@@ -31,61 +31,69 @@
                 </div>
             </section>
 
-            <!-- TOP GRID: PERSONAL INPUT -->
-            <section class="card grid-card">
-                <div class="card-header">
-                    <h2>1. Your Availability (Click/Drag to select)</h2>
-                    <div class="controls">
-                        <button id="clear-selection" class="btn btn-secondary">Clear All</button>
-                    </div>
-                </div>
-                <div class="grid-container input-grid-container">
-                    <table id="schedule-grid">
-                        <thead id="grid-header">
-                            <tr>
-                                <th class="time-col">TIME</th>
-                                <th>MON</th>
-                                <th>TUE</th>
-                                <th>WED</th>
-                                <th>THU</th>
-                                <th>FRI</th>
-                                <th>SAT</th>
-                                <th>SUN</th>
-                            </tr>
-                        </thead>
-                        <tbody id="grid-body">
-                            <!-- JS Generated -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            <!-- TAB NAVIGATION -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="input-tab">1. Your Input</button>
+                <button class="tab-btn" data-tab="results-tab">2. Group Results</button>
+                <div id="sync-status">Connecting...</div>
+            </div>
 
-            <!-- BOTTOM GRID: GROUP VIEW -->
-            <section class="card grid-card result-section">
-                <div class="card-header">
-                    <h2>2. Group Summary (Visual Results)</h2>
-                    <div id="sync-status">Connecting to room...</div>
-                </div>
-                <div class="grid-container group-grid-container">
-                    <table id="group-grid">
-                        <thead id="group-grid-header">
-                            <tr>
-                                <th class="time-col">TIME</th>
-                                <th>MON</th>
-                                <th>TUE</th>
-                                <th>WED</th>
-                                <th>THU</th>
-                                <th>FRI</th>
-                                <th>SAT</th>
-                                <th>SUN</th>
-                            </tr>
-                        </thead>
-                        <tbody id="group-grid-body">
-                            <!-- JS Generated -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            <main class="tab-content">
+                <!-- TAB 1: PERSONAL INPUT -->
+                <section id="input-tab" class="tab-pane active">
+                    <div class="grid-container input-grid-container">
+                        <table id="schedule-grid">
+                            <thead>
+                                <tr>
+                                    <th class="time-col">TIME</th>
+                                    <th>MON <span class="header-date"></span></th>
+                                    <th>TUE <span class="header-date"></span></th>
+                                    <th>WED <span class="header-date"></span></th>
+                                    <th>THU <span class="header-date"></span></th>
+                                    <th>FRI <span class="header-date"></span></th>
+                                    <th>SAT <span class="header-date"></span></th>
+                                    <th>SUN <span class="header-date"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="grid-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- TAB 2: GROUP RESULTS -->
+                <section id="results-tab" class="tab-pane">
+                    <div class="results-layout">
+                        <div class="grid-container group-grid-container">
+                            <table id="group-grid-table">
+                                <thead>
+                                    <tr>
+                                        <th class="time-col">TIME</th>
+                                        <th>MON <span class="header-date"></span></th>
+                                        <th>TUE <span class="header-date"></span></th>
+                                        <th>WED <span class="header-date"></span></th>
+                                        <th>THU <span class="header-date"></span></th>
+                                        <th>FRI <span class="header-date"></span></th>
+                                        <th>SAT <span class="header-date"></span></th>
+                                        <th>SUN <span class="header-date"></span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="group-grid-body"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="results-sidebar glass">
+                            <h3>User Details</h3>
+                            <select id="user-selector" class="dropdown">
+                                <option value="">Select a user...</option>
+                            </select>
+                            
+                            <div id="user-summary" class="summary-box">
+                                <p class="placeholder">Select a user to see their schedule and Discord tags.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
 
             <div class="side-by-side">
                 <section class="availability-card glass">

@@ -1,5 +1,5 @@
 /**
- * ChronoSync - Application Logic
+ * ChronoSync - Application Logic (V2 - Tabbed Dashboard)
  */
 
 const firebaseConfig = {
@@ -38,6 +38,7 @@ const listenToRoom = (roomId, callback) => {
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const HOURS = 24;
 const SLOTS_PER_HOUR = 4;
+const TOTAL_SLOTS = HOURS * SLOTS_PER_HOUR;
 
 // DOM Elements
 const gridBody = document.getElementById('grid-body');
@@ -48,13 +49,28 @@ const clearBtn = document.getElementById('clear-selection');
 const copyLinkBtn = document.getElementById('copy-link');
 const copyDiscordBtn = document.getElementById('copy-discord');
 const timezoneIndicator = document.getElementById('timezone-indicator');
+const userSelector = document.getElementById('user-selector');
+const userSummary = document.getElementById('user-summary');
+const tabButtons = document.querySelectorAll('.tab-btn');
+const tabPanes = document.querySelectorAll('.tab-pane');
 
 let isDragging = false;
 let selectionMode = true; 
 let selectedSlots = new Set(); 
 let roomData = {};
 
-// 1. Timezone & Initialization
+// 1. Tab Switching
+tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const target = btn.dataset.tab;
+        tabButtons.forEach(b => b.classList.remove('active'));
+        tabPanes.forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(target).classList.add('active');
+    });
+});
+
+// 2. Timezone & Initialization
 function detectTimezone() {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; }
 }
@@ -67,8 +83,8 @@ function initGrid() {
     monday.setDate(now.getDate() - dayOffset);
     monday.setHours(0,0,0,0);
 
-    const headerDateCells = document.querySelectorAll('.header-date');
-    headerDateCells.forEach((span, i) => {
+    const headerDates = document.querySelectorAll('.header-date');
+    headerDates.forEach((span, i) => {
         const d = new Date(monday);
         d.setDate(monday.getDate() + (i % 7));
         span.textContent = `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
@@ -83,18 +99,21 @@ function buildGridTable(container, isInput) {
     for (let h = 0; h < HOURS; h++) {
         for (let s = 0; s < SLOTS_PER_HOUR; s++) {
             const row = document.createElement('tr');
+            
+            // Time Column
             const timeCol = document.createElement('td');
             timeCol.className = 'time-col';
             if (s === 0) {
                 const hourLabel = h % 12 || 12;
                 const ampm = h < 12 ? 'AM' : 'PM';
-                timeCol.textContent = `${hourLabel}:00 ${ampm}`;
+                timeCol.innerHTML = `<b>${hourLabel}:00</b> <span class='ampm'>${ampm}</span>`;
             } else {
                 timeCol.textContent = `:${s * 15}`;
                 timeCol.classList.add('sub-hour');
             }
             row.appendChild(timeCol);
 
+            // Day Columns
             for (let d = 0; d < 7; d++) {
                 const cell = document.createElement('td');
                 const slotId = `${d}-${h * SLOTS_PER_HOUR + s}`;
@@ -112,10 +131,9 @@ function buildGridTable(container, isInput) {
     }
 }
 
-// 2. Selection Logic
+// 3. Selection Logic
 function startSelection(e, slotId) {
     isDragging = true;
-    document.body.classList.add('dragging');
     selectionMode = !selectedSlots.has(slotId);
     toggleSlot(slotId);
 }
@@ -134,8 +152,8 @@ function toggleSlot(slotId, forceMode = false) {
         if (selectedSlots.has(slotId)) { selectedSlots.delete(slotId); cell.classList.remove('selected'); }
         else { selectedSlots.add(slotId); cell.classList.add('selected'); }
     }
-    updateLists();
-    handleSync();
+    updateRoomData();
+    debouncedSync();
 }
 
 window.addEventListener('mouseup', () => {
@@ -143,15 +161,14 @@ window.addEventListener('mouseup', () => {
     document.body.classList.remove('dragging');
 });
 
-// 3. Sync & Rendering
+// 4. Group View Rendering
 function renderGroupGrid() {
-    document.querySelectorAll('#group-grid .slot-names').forEach(div => div.innerHTML = "");
-
+    document.querySelectorAll('#group-grid-body .slot-names').forEach(div => div.innerHTML = "");
     Object.keys(roomData).forEach(user => {
         const slots = roomData[user];
         if (!slots) return;
         slots.forEach(slotId => {
-            const cell = document.querySelector(`#group-grid [data-slot-id="${slotId}"] .slot-names`);
+            const cell = document.querySelector(`#group-grid-body [data-slot-id="${slotId}"] .slot-names`);
             if (cell) {
                 const tag = document.createElement('span');
                 tag.className = 'name-tag';
@@ -162,26 +179,137 @@ function renderGroupGrid() {
     });
 }
 
-function updateLists() {
+function updateRoomData() {
     const myName = usernameInput.value || 'Anonymous';
     roomData[myName] = Array.from(selectedSlots);
     renderGroupGrid();
+    updateDropdown();
 }
 
-const roomId = getRoomId();
-listenToRoom(roomId, (data) => {
-    roomData = data;
-    syncStatus.textContent = `Room: ${roomId} | ${Object.keys(data).length} Active`;
-    renderGroupGrid();
-});
+function updateDropdown() {
+    const currentVal = userSelector.value;
+    userSelector.innerHTML = '<option value="">Select a user...</option>';
+    Object.keys(roomData).sort().forEach(user => {
+        const opt = document.createElement('option');
+        opt.value = user;
+        opt.textContent = user;
+        userSelector.appendChild(opt);
+    });
+    userSelector.value = currentVal;
+    renderUserSummary();
+}
 
+userSelector.addEventListener('change', renderUserSummary);
+
+function renderUserSummary() {
+    const user = userSelector.value;
+    if (!user || !roomData[user]) {
+        userSummary.innerHTML = '<p class="placeholder">Select a user to see their schedule.</p>';
+        return;
+    }
+
+    const slots = roomData[user];
+    let html = `<h4>${user}'s Schedule</h4><div class='tag-list'>`;
+    
+    // Group and format
+    const blocks = groupSlots(slots);
+    blocks.forEach(b => {
+        const endUnix = getUnixForSlot(b.day, b.lastSlot + 1);
+        html += `<div class='summary-line'><b><t:${b.startTime}:F></b><br>to <t:${endUnix}:t></div>`;
+    });
+    html += `</div>`;
+    userSummary.innerHTML = html;
+}
+
+function groupSlots(slots) {
+    const sorted = Array.from(slots).sort((a, b) => {
+        const [da, sa] = a.split('-').map(Number);
+        const [db, sb] = b.split('-').map(Number);
+        return da !== db ? da - db : sa - sb;
+    });
+    let blocks = [];
+    let cur = null;
+    sorted.forEach(id => {
+        const [d, s] = id.split('-').map(Number);
+        if (!cur || cur.day !== d || cur.lastSlot + 1 !== s) {
+            if (cur) blocks.push(cur);
+            cur = { day: d, startSlot: s, lastSlot: s, startTime: getUnixForSlot(d, s) };
+        } else { cur.lastSlot = s; }
+    });
+    if (cur) blocks.push(cur);
+    return blocks;
+}
+
+function getUnixForSlot(dayIndex, slotIndex) {
+    const now = new Date();
+    const dayOffset = (now.getDay() || 7) - 1; 
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dayOffset);
+    monday.setHours(0, 0, 0, 0);
+    const date = new Date(monday.getTime() + (dayIndex * 24 * 60 + slotIndex * 15) * 60000);
+    return Math.floor(date.getTime() / 1000);
+}
+
+// 5. Lifecycle & Sync
+const roomId = getRoomId();
 function getRoomId() {
-    let hash = window.location.hash.substring(1);
+    let hash = window.location.hash.substring(1).split('#')[0]; // Clean hash
     if (!hash) { hash = Math.random().toString(36).substring(2, 10); window.location.hash = hash; }
     return hash;
 }
 
-// 4. Identity & Controls
+listenToRoom(roomId, (data) => {
+    roomData = data;
+    syncStatus.textContent = `Room: ${roomId} | ${Object.keys(data).length} Active`;
+    renderGroupGrid();
+    updateDropdown();
+});
+
+let syncTimeout = null;
+function debouncedSync() {
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => {
+        const name = usernameInput.value || 'Anonymous';
+        syncAvailability(roomId, name, selectedSlots);
+    }, 1000);
+}
+
+copyLinkBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+        const originalText = copyLinkBtn.innerText;
+        copyLinkBtn.innerText = "LINK COPIED!";
+        setTimeout(() => copyLinkBtn.innerText = originalText, 2000);
+    });
+});
+
+clearBtn.addEventListener('click', () => {
+    selectedSlots.clear();
+    document.querySelectorAll('#grid-body .selected').forEach(c => c.classList.remove('selected'));
+    updateRoomData();
+    debouncedSync();
+});
+
+copyDiscordBtn.addEventListener('click', () => {
+    const myName = usernameInput.value || 'Anonymous';
+    const mySlots = roomData[myName] || [];
+    if (mySlots.length === 0) return;
+
+    let text = `**${myName}'s Availability:**\n`;
+    const blocks = groupSlots(mySlots);
+
+    blocks.forEach(b => {
+        const endUnix = getUnixForSlot(b.day, b.lastSlot + 1);
+        text += `- <t:${b.startTime}:F> to <t:${endUnix}:t>\n`;
+    });
+
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = copyDiscordBtn.innerText;
+        copyDiscordBtn.innerText = "COPIED!";
+        setTimeout(() => copyDiscordBtn.innerText = originalText, 2000);
+    });
+});
+
+// Identity Persistence
 let savedName = localStorage.getItem('chronosync_name');
 if (savedName) { usernameInput.value = savedName; lockName(); }
 
@@ -199,77 +327,6 @@ usernameInput.addEventListener('dblclick', () => {
 });
 
 usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') lockName(); });
-
-let syncTimeout = null;
-function handleSync() {
-    clearTimeout(syncTimeout);
-    syncTimeout = setTimeout(() => {
-        const name = usernameInput.value || 'Anonymous';
-        syncAvailability(roomId, name, selectedSlots);
-        if (!usernameInput.disabled) lockName();
-    }, 1000);
-}
-
-copyLinkBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-        const originalText = copyLinkBtn.innerText;
-        copyLinkBtn.innerText = "LINK COPIED!";
-        setTimeout(() => copyLinkBtn.innerText = originalText, 2000);
-    });
-});
-
-clearBtn.addEventListener('click', () => {
-    selectedSlots.clear();
-    document.querySelectorAll('#grid-body .selected').forEach(c => c.classList.remove('selected'));
-    updateLists();
-    handleSync();
-});
-
-copyDiscordBtn.addEventListener('click', () => {
-    const myName = usernameInput.value || 'Anonymous';
-    const mySlots = roomData[myName] || [];
-    if (mySlots.length === 0) return;
-
-    let text = `**${myName}'s Availability:**\n`;
-    const sorted = Array.from(mySlots).sort((a, b) => {
-        const [da, sa] = a.split('-').map(Number);
-        const [db, sb] = b.split('-').map(Number);
-        return da !== db ? da - db : sa - sb;
-    });
-
-    let blocks = [];
-    let current = null;
-    sorted.forEach(slotId => {
-        const [day, slot] = slotId.split('-').map(Number);
-        if (!current || current.day !== day || current.lastSlot + 1 !== slot) {
-            if (current) blocks.push(current);
-            current = { day, startSlot: slot, lastSlot: slot, startTime: getUnixForSlot(day, slot) };
-        } else { current.lastSlot = slot; }
-    });
-    if (current) blocks.push(current);
-
-    blocks.forEach(b => {
-        const endUnix = getUnixForSlot(b.day, b.lastSlot + 1);
-        text += `- <t:${b.startTime}:F> to <t:${endUnix}:t>\n`;
-    });
-
-    navigator.clipboard.writeText(text).then(() => {
-        const originalText = copyDiscordBtn.innerText;
-        copyDiscordBtn.innerText = "COPIED!";
-        setTimeout(() => copyDiscordBtn.innerText = originalText, 2000);
-    });
-});
-
-function getUnixForSlot(dayIndex, slotIndex) {
-    const now = new Date();
-    const dayOffset = (now.getDay() || 7) - 1; 
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - dayOffset);
-    monday.setHours(0, 0, 0, 0);
-    const slotMinutes = (dayIndex * 24 * 60) + (slotIndex * 15);
-    const date = new Date(monday.getTime() + slotMinutes * 60000);
-    return Math.floor(date.getTime() / 1000);
-}
 
 initGrid();
 console.log(`ChronoSync initialized: ${roomId}`);
