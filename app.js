@@ -1,82 +1,135 @@
 /**
- * ChronoSync - Application Logic (V2 - Tabbed Dashboard)
+ * ChronoSync - Application Logic (V2.1 - Robust Dashboard)
  */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD3OmNrVAp0UOfwjAygwCwaxjA_XoiogQE",
-  authDomain: "chronosync-caaf6.firebaseapp.com",
-  projectId: "chronosync-caaf6",
-  storageBucket: "chronosync-caaf6.firebasestorage.app",
-  messagingSenderId: "90028883606",
-  appId: "1:90028883606:web:7bb0d05b1b79e7aba44cb7",
-  measurementId: "G-1F5QTB9Q52"
+    apiKey: "AIzaSyD3OmNrVAp0UOfwjAygwCwaxjA_XoiogQE",
+    authDomain: "chronosync-caaf6.firebaseapp.com",
+    projectId: "chronosync-caaf6",
+    storageBucket: "chronosync-caaf6.firebasestorage.app",
+    messagingSenderId: "90028883606",
+    appId: "1:90028883606:web:7bb0d05b1b79e7aba44cb7",
+    measurementId: "G-1F5QTB9Q52"
 };
 
-// Initialize Firebase
+// Global State
 let db = null;
-if (typeof firebase !== 'undefined') {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.firestore();
-}
-
-const syncAvailability = async (roomId, userName, slots) => {
-    if (!db || !roomId) return;
-    try {
-        await db.collection("rooms").doc(roomId).set({
-            [userName]: Array.from(slots)
-        }, { merge: true });
-    } catch (e) { console.warn("Sync Failed:", e); }
-};
-
-const listenToRoom = (roomId, callback) => {
-    if (!db || !roomId) return;
-    return db.collection("rooms").doc(roomId).onSnapshot((doc) => {
-        if (doc.exists) callback(doc.data());
-    });
-};
-
-const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const HOURS = 24;
 const SLOTS_PER_HOUR = 4;
-const TOTAL_SLOTS = HOURS * SLOTS_PER_HOUR;
-
-// DOM Elements
-const gridBody = document.getElementById('grid-body');
-const groupGridBody = document.getElementById('group-grid-body');
-const syncStatus = document.getElementById('sync-status');
-const usernameInput = document.getElementById('username');
-const clearBtn = document.getElementById('clear-selection');
-const copyLinkBtn = document.getElementById('copy-link');
-const copyDiscordBtn = document.getElementById('copy-discord');
-const timezoneIndicator = document.getElementById('timezone-indicator');
-const userSelector = document.getElementById('user-selector');
-const userSummary = document.getElementById('user-summary');
-const tabButtons = document.querySelectorAll('.tab-btn');
-const tabPanes = document.querySelectorAll('.tab-pane');
-
 let isDragging = false;
 let selectionMode = true; 
 let selectedSlots = new Set(); 
 let roomData = {};
+let roomId = null;
+let elements = {};
 
-// 1. Tab Switching
-tabButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const target = btn.dataset.tab;
-        tabButtons.forEach(b => b.classList.remove('active'));
-        tabPanes.forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById(target).classList.add('active');
-    });
+// 1. Core Initialization
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("Initializing ChronoSync Dashboard...");
+    
+    // Cache DOM Elements
+    elements = {
+        gridBody: document.getElementById('grid-body'),
+        groupGridBody: document.getElementById('group-grid-body'),
+        syncStatus: document.getElementById('sync-status'),
+        usernameInput: document.getElementById('username'),
+        userSelector: document.getElementById('user-selector'),
+        userSummary: document.getElementById('user-summary'),
+        tabButtons: document.querySelectorAll('.tab-btn'),
+        tabPanes: document.querySelectorAll('.tab-pane'),
+        timezoneIndicator: document.getElementById('timezone-indicator'),
+        copyLinkBtn: document.getElementById('copy-link'),
+        copyDiscordBtn: document.getElementById('copy-discord'),
+        clearBtn: document.getElementById('clear-selection'),
+        groupList: document.getElementById('group-list'),
+        timestampList: document.getElementById('timestamp-list'),
+        weekLabel: document.getElementById('week-label')
+    };
+
+    // Firebase Setup
+    if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+    } else {
+        console.error("Firebase SDK missing!");
+    }
+
+    // Hash/Room ID Setup
+    roomId = window.location.hash.substring(1).split('#')[0];
+    if (!roomId) {
+        roomId = Math.random().toString(36).substring(2, 10);
+        window.location.hash = roomId;
+    }
+
+    // UI Listeners
+    setupEventListeners();
+    
+    // Build Grids
+    initGrid();
+    
+    // Start Real-time Sync
+    if (db) startSync();
+    
+    // Load Identity
+    loadIdentity();
+
+    console.log(`ChronoSync initialized for room: ${roomId}`);
 });
 
-// 2. Timezone & Initialization
-function detectTimezone() {
-    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; }
-}
-timezoneIndicator.textContent = `Your Timezone: ${detectTimezone()}`;
+function setupEventListeners() {
+    // Tab switching
+    elements.tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.dataset.tab;
+            elements.tabButtons.forEach(b => b.classList.remove('active'));
+            elements.tabPanes.forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(target).classList.add('active');
+        });
+    });
 
+    // Name input
+    elements.usernameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') lockName();
+    });
+    elements.usernameInput.addEventListener('dblclick', () => {
+        elements.usernameInput.disabled = false;
+        elements.usernameInput.classList.remove('locked');
+    });
+
+    // Control buttons
+    if (elements.copyLinkBtn) {
+        elements.copyLinkBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(window.location.href);
+            const originalText = elements.copyLinkBtn.innerText;
+            elements.copyLinkBtn.innerText = "COPIED!";
+            setTimeout(() => elements.copyLinkBtn.innerText = originalText, 2000);
+        });
+    }
+
+    if (elements.clearBtn) {
+        elements.clearBtn.addEventListener('click', () => {
+            selectedSlots.clear();
+            document.querySelectorAll('#grid-body .selected').forEach(c => c.classList.remove('selected'));
+            updateLocalState();
+            debouncedSync();
+        });
+    }
+
+    if (elements.copyDiscordBtn) {
+        elements.copyDiscordBtn.addEventListener('click', copyMyDiscordTags);
+    }
+
+    if (elements.userSelector) {
+        elements.userSelector.addEventListener('change', renderUserSummary);
+    }
+
+    window.addEventListener('mouseup', () => { isDragging = false; });
+}
+
+// 2. Grid Construction
 function initGrid() {
+    // Set Week Dates in Headers
     const now = new Date();
     const dayOffset = (now.getDay() || 7) - 1; 
     const monday = new Date(now);
@@ -84,43 +137,75 @@ function initGrid() {
     monday.setHours(0,0,0,0);
 
     const headerDates = document.querySelectorAll('.header-date');
+    let mondayDate = null;
+    let sundayDate = null;
+
     headerDates.forEach((span, i) => {
         const d = new Date(monday);
         d.setDate(monday.getDate() + (i % 7));
+        if (i === 0) mondayDate = d;
+        if (i === 6) sundayDate = d;
         span.textContent = `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
     });
 
-    buildGridTable(gridBody, true);
-    buildGridTable(groupGridBody, false);
+    // Update Week Label
+    if (elements.weekLabel && mondayDate && sundayDate) {
+        const mMonth = mondayDate.toLocaleString('default', { month: 'long' });
+        const sMonth = sundayDate.toLocaleString('default', { month: 'long' });
+        if (mMonth === sMonth) {
+            elements.weekLabel.textContent = `Schedule: ${mMonth} ${mondayDate.getDate()} - ${sundayDate.getDate()}`;
+        } else {
+            elements.weekLabel.textContent = `Schedule: ${mMonth} ${mondayDate.getDate()} - ${sMonth} ${sundayDate.getDate()}`;
+        }
+    }
+
+    // Build Tables
+    buildTable(elements.gridBody, true);
+    buildTable(elements.groupGridBody, false);
+
+    // Timezone 
+    if (elements.timezoneIndicator) {
+        try {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+            elements.timezoneIndicator.textContent = `Timezone: ${tz}`;
+        } catch(e) {}
+    }
 }
 
-function buildGridTable(container, isInput) {
+function buildTable(container, isInput) {
     if (!container) return;
+    container.innerHTML = ""; // Clear
     for (let h = 0; h < HOURS; h++) {
         for (let s = 0; s < SLOTS_PER_HOUR; s++) {
             const row = document.createElement('tr');
             
-            // Time Column
-            const timeCol = document.createElement('td');
-            timeCol.className = 'time-col';
+            // Time Col
+            const tCol = document.createElement('td');
+            tCol.className = 'time-col';
             if (s === 0) {
                 const hourLabel = h % 12 || 12;
                 const ampm = h < 12 ? 'AM' : 'PM';
-                timeCol.innerHTML = `<b>${hourLabel}:00</b> <span class='ampm'>${ampm}</span>`;
+                tCol.innerHTML = `<b>${hourLabel}:00</b> <span class='ampm'>${ampm}</span>`;
             } else {
-                timeCol.textContent = `:${s * 15}`;
-                timeCol.classList.add('sub-hour');
+                tCol.textContent = `:${s * 15}`;
+                tCol.classList.add('sub-hour');
             }
-            row.appendChild(timeCol);
+            row.appendChild(tCol);
 
-            // Day Columns
+            // Day Cols
             for (let d = 0; d < 7; d++) {
                 const cell = document.createElement('td');
-                const slotId = `${d}-${h * SLOTS_PER_HOUR + s}`;
-                cell.dataset.slotId = slotId;
+                const sid = `${d}-${h * SLOTS_PER_HOUR + s}`;
+                cell.dataset.slotId = sid;
                 if (isInput) {
-                    cell.addEventListener('mousedown', (e) => startSelection(e, slotId));
-                    cell.addEventListener('mouseover', (e) => handleMouseOver(e, slotId));
+                    cell.addEventListener('mousedown', (e) => {
+                        isDragging = true;
+                        selectionMode = !selectedSlots.has(sid);
+                        toggleSlot(sid);
+                    });
+                    cell.addEventListener('mouseover', () => {
+                        if (isDragging) toggleSlot(sid, true);
+                    });
                 } else {
                     cell.innerHTML = '<div class="slot-names"></div>';
                 }
@@ -131,202 +216,229 @@ function buildGridTable(container, isInput) {
     }
 }
 
-// 3. Selection Logic
-function startSelection(e, slotId) {
-    isDragging = true;
-    selectionMode = !selectedSlots.has(slotId);
-    toggleSlot(slotId);
-}
-
-function handleMouseOver(e, slotId) {
-    if (isDragging) toggleSlot(slotId, true);
-}
-
-function toggleSlot(slotId, forceMode = false) {
-    const cell = document.querySelector(`#grid-body [data-slot-id="${slotId}"]`);
+function toggleSlot(sid, forceMode = false) {
+    const cell = document.querySelector(`#grid-body [data-slot-id="${sid}"]`);
     if (!cell) return;
+    
     if (forceMode) {
-        if (selectionMode) { selectedSlots.add(slotId); cell.classList.add('selected'); }
-        else { selectedSlots.delete(slotId); cell.classList.remove('selected'); }
+        if (selectionMode) { selectedSlots.add(sid); cell.classList.add('selected'); }
+        else { selectedSlots.delete(sid); cell.classList.remove('selected'); }
     } else {
-        if (selectedSlots.has(slotId)) { selectedSlots.delete(slotId); cell.classList.remove('selected'); }
-        else { selectedSlots.add(slotId); cell.classList.add('selected'); }
+        if (selectedSlots.has(sid)) { selectedSlots.delete(sid); cell.classList.remove('selected'); }
+        else { selectedSlots.add(sid); cell.classList.add('selected'); }
     }
-    updateRoomData();
+    
+    updateLocalState();
     debouncedSync();
 }
 
-window.addEventListener('mouseup', () => {
-    isDragging = false;
-    document.body.classList.remove('dragging');
-});
+// 3. Synchronization
+function startSync() {
+    db.collection("rooms").doc(roomId).onSnapshot((doc) => {
+        if (doc.exists) {
+            roomData = doc.data();
+            const count = Object.keys(roomData).length;
+            elements.syncStatus.textContent = `Active: ${count} users`;
+            refreshAllResults();
+        }
+    });
+}
 
-// 4. Group View Rendering
+let syncTimer = null;
+function debouncedSync() {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+        if (!db || !roomId) return;
+        const name = elements.usernameInput.value || 'Anonymous';
+        db.collection("rooms").doc(roomId).set({
+            [name]: Array.from(selectedSlots)
+        }, { merge: true }).catch(console.error);
+        lockName();
+    }, 1200);
+}
+
+function updateLocalState() {
+    const name = elements.usernameInput.value || 'Anonymous';
+    roomData[name] = Array.from(selectedSlots);
+    refreshAllResults();
+}
+
+// 4. Rendering & Summaries
+function refreshAllResults() {
+    renderGroupGrid();
+    refreshUserDropdown();
+    renderGroupList();
+    renderTimestampList();
+}
+
 function renderGroupGrid() {
     document.querySelectorAll('#group-grid-body .slot-names').forEach(div => div.innerHTML = "");
     Object.keys(roomData).forEach(user => {
         const slots = roomData[user];
-        if (!slots) return;
-        slots.forEach(slotId => {
-            const cell = document.querySelector(`#group-grid-body [data-slot-id="${slotId}"] .slot-names`);
-            if (cell) {
+        if (!Array.isArray(slots)) return;
+        slots.forEach(sid => {
+            const target = document.querySelector(`#group-grid-body [data-slot-id="${sid}"] .slot-names`);
+            if (target) {
                 const tag = document.createElement('span');
                 tag.className = 'name-tag';
                 tag.textContent = user;
-                cell.appendChild(tag);
+                target.appendChild(tag);
             }
         });
     });
 }
 
-function updateRoomData() {
-    const myName = usernameInput.value || 'Anonymous';
-    roomData[myName] = Array.from(selectedSlots);
-    renderGroupGrid();
-    updateDropdown();
-}
-
-function updateDropdown() {
-    const currentVal = userSelector.value;
-    userSelector.innerHTML = '<option value="">Select a user...</option>';
+function refreshUserDropdown() {
+    if (!elements.userSelector) return;
+    const current = elements.userSelector.value;
+    elements.userSelector.innerHTML = '<option value="">Select a user...</option>';
     Object.keys(roomData).sort().forEach(user => {
         const opt = document.createElement('option');
         opt.value = user;
         opt.textContent = user;
-        userSelector.appendChild(opt);
+        elements.userSelector.appendChild(opt);
     });
-    userSelector.value = currentVal;
+    elements.userSelector.value = current;
     renderUserSummary();
 }
 
-userSelector.addEventListener('change', renderUserSummary);
-
 function renderUserSummary() {
-    const user = userSelector.value;
+    if (!elements.userSummary) return;
+    const user = elements.userSelector.value;
     if (!user || !roomData[user]) {
-        userSummary.innerHTML = '<p class="placeholder">Select a user to see their schedule.</p>';
+        elements.userSummary.innerHTML = '<p class="placeholder">Select a user to see their availability.</p>';
         return;
     }
 
     const slots = roomData[user];
-    let html = `<h4>${user}'s Schedule</h4><div class='tag-list'>`;
+    const blocks = groupSlotsIntoBlocks(slots);
     
-    // Group and format
-    const blocks = groupSlots(slots);
+    let html = `<h4>${user}'s Availability</h4><div class='tag-list local-friendly'>`;
     blocks.forEach(b => {
-        const endUnix = getUnixForSlot(b.day, b.lastSlot + 1);
-        html += `<div class='summary-line'><b><t:${b.startTime}:F></b><br>to <t:${endUnix}:t></div>`;
+        const start = new Date(b.startTime * 1000);
+        const end = new Date(getUnixAtSlot(b.day, b.lastSlot + 1) * 1000);
+        
+        const dateStr = start.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+        const startStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        const endStr = end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        
+        html += `<div class='summary-line'><b>${dateStr}</b><br>${startStr} - ${endStr}</div>`;
     });
     html += `</div>`;
-    userSummary.innerHTML = html;
+    elements.userSummary.innerHTML = html;
 }
 
-function groupSlots(slots) {
+function renderGroupList() {
+    if (!elements.groupList) return;
+    
+    const userNames = Object.keys(roomData);
+    if (userNames.length < 2) {
+        elements.groupList.innerHTML = "<p class='placeholder'>Add more users to find shared times...</p>";
+        return;
+    }
+
+    // INTERSECTION LOGIC
+    let sharedSlots = null;
+    userNames.forEach(user => {
+        const userSlots = new Set(roomData[user]);
+        if (sharedSlots === null) {
+            sharedSlots = userSlots;
+        } else {
+            sharedSlots = new Set([...sharedSlots].filter(x => userSlots.has(x)));
+        }
+    });
+
+    if (!sharedSlots || sharedSlots.size === 0) {
+        elements.groupList.innerHTML = "<p class='placeholder'>No overlapping availability found.</p>";
+        return;
+    }
+
+    const blocks = groupSlotsIntoBlocks(Array.from(sharedSlots));
+    let html = "<div class='timestamp-list discord-friendly'>";
+    blocks.forEach(b => {
+        const endUnix = getUnixAtSlot(b.day, b.lastSlot + 1);
+        html += `<div class='summary-line'><code>&lt;t:${b.startTime}:F&gt; to &lt;t:${endUnix}:t&gt;</code></div>`;
+    });
+    html += "</div>";
+    elements.groupList.innerHTML = html;
+}
+
+function renderTimestampList() {
+    if (!elements.timestampList) return;
+    let html = "";
+    Object.keys(roomData).forEach(user => {
+        const slots = roomData[user];
+        if (!Array.isArray(slots) || slots.length === 0) return;
+        const blocks = groupSlotsIntoBlocks(slots);
+        html += `<details class='user-timestamp-detail'><summary>${user}</summary><div class='timestamp-codes'>`;
+        blocks.forEach(b => {
+            const endUnix = getUnixAtSlot(b.day, b.lastSlot + 1);
+            html += `<p><code>&lt;t:${b.startTime}:F&gt; to &lt;t:${endUnix}:t&gt;</code></p>`;
+        });
+        html += `</div></details>`;
+    });
+    elements.timestampList.innerHTML = html || "Select blocks to see codes...";
+}
+
+function copyMyDiscordTags() {
+    const myName = elements.usernameInput.value || 'Anonymous';
+    const mySlots = selectedSlots;
+    if (mySlots.size === 0) return;
+
+    let text = `**${myName}'s Availability:**\n`;
+    const blocks = groupSlotsIntoBlocks(mySlots);
+    blocks.forEach(b => {
+        const endUnix = getUnixAtSlot(b.day, b.lastSlot + 1);
+        text += `- <t:${b.startTime}:F> to <t:${endUnix}:t>\n`;
+    });
+
+    navigator.clipboard.writeText(text);
+    const originalText = elements.copyDiscordBtn.innerText;
+    elements.copyDiscordBtn.innerText = "COPIED!";
+    setTimeout(() => elements.copyDiscordBtn.innerText = originalText, 2000);
+}
+
+// 5. Helpers
+function groupSlotsIntoBlocks(slots) {
     const sorted = Array.from(slots).sort((a, b) => {
         const [da, sa] = a.split('-').map(Number);
         const [db, sb] = b.split('-').map(Number);
         return da !== db ? da - db : sa - sb;
     });
-    let blocks = [];
+    const blocks = [];
     let cur = null;
     sorted.forEach(id => {
         const [d, s] = id.split('-').map(Number);
         if (!cur || cur.day !== d || cur.lastSlot + 1 !== s) {
             if (cur) blocks.push(cur);
-            cur = { day: d, startSlot: s, lastSlot: s, startTime: getUnixForSlot(d, s) };
+            cur = { day: d, startSlot: s, lastSlot: s, startTime: getUnixAtSlot(d, s) };
         } else { cur.lastSlot = s; }
     });
     if (cur) blocks.push(cur);
     return blocks;
 }
 
-function getUnixForSlot(dayIndex, slotIndex) {
+function getUnixAtSlot(dayIdx, slotIdx) {
     const now = new Date();
     const dayOffset = (now.getDay() || 7) - 1; 
     const monday = new Date(now);
     monday.setDate(now.getDate() - dayOffset);
     monday.setHours(0, 0, 0, 0);
-    const date = new Date(monday.getTime() + (dayIndex * 24 * 60 + slotIndex * 15) * 60000);
+    const date = new Date(monday.getTime() + (dayIdx * 24 * 60 + slotIdx * 15) * 60000);
     return Math.floor(date.getTime() / 1000);
 }
 
-// 5. Lifecycle & Sync
-const roomId = getRoomId();
-function getRoomId() {
-    let hash = window.location.hash.substring(1).split('#')[0]; // Clean hash
-    if (!hash) { hash = Math.random().toString(36).substring(2, 10); window.location.hash = hash; }
-    return hash;
+function loadIdentity() {
+    const saved = localStorage.getItem('chronosync_name');
+    if (saved) {
+        elements.usernameInput.value = saved;
+        lockName();
+    }
 }
-
-listenToRoom(roomId, (data) => {
-    roomData = data;
-    syncStatus.textContent = `Room: ${roomId} | ${Object.keys(data).length} Active`;
-    renderGroupGrid();
-    updateDropdown();
-});
-
-let syncTimeout = null;
-function debouncedSync() {
-    clearTimeout(syncTimeout);
-    syncTimeout = setTimeout(() => {
-        const name = usernameInput.value || 'Anonymous';
-        syncAvailability(roomId, name, selectedSlots);
-    }, 1000);
-}
-
-copyLinkBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-        const originalText = copyLinkBtn.innerText;
-        copyLinkBtn.innerText = "LINK COPIED!";
-        setTimeout(() => copyLinkBtn.innerText = originalText, 2000);
-    });
-});
-
-clearBtn.addEventListener('click', () => {
-    selectedSlots.clear();
-    document.querySelectorAll('#grid-body .selected').forEach(c => c.classList.remove('selected'));
-    updateRoomData();
-    debouncedSync();
-});
-
-copyDiscordBtn.addEventListener('click', () => {
-    const myName = usernameInput.value || 'Anonymous';
-    const mySlots = roomData[myName] || [];
-    if (mySlots.length === 0) return;
-
-    let text = `**${myName}'s Availability:**\n`;
-    const blocks = groupSlots(mySlots);
-
-    blocks.forEach(b => {
-        const endUnix = getUnixForSlot(b.day, b.lastSlot + 1);
-        text += `- <t:${b.startTime}:F> to <t:${endUnix}:t>\n`;
-    });
-
-    navigator.clipboard.writeText(text).then(() => {
-        const originalText = copyDiscordBtn.innerText;
-        copyDiscordBtn.innerText = "COPIED!";
-        setTimeout(() => copyDiscordBtn.innerText = originalText, 2000);
-    });
-});
-
-// Identity Persistence
-let savedName = localStorage.getItem('chronosync_name');
-if (savedName) { usernameInput.value = savedName; lockName(); }
 
 function lockName() {
-    if (usernameInput.value.trim() === "") return;
-    usernameInput.disabled = true;
-    localStorage.setItem('chronosync_name', usernameInput.value);
-    usernameInput.classList.add('locked');
+    if (elements.usernameInput.value.trim() === "") return;
+    elements.usernameInput.disabled = true;
+    localStorage.setItem('chronosync_name', elements.usernameInput.value);
+    elements.usernameInput.classList.add('locked');
 }
-
-usernameInput.addEventListener('dblclick', () => {
-    usernameInput.disabled = false;
-    usernameInput.classList.remove('locked');
-    usernameInput.focus();
-});
-
-usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') lockName(); });
-
-initGrid();
-console.log(`ChronoSync initialized: ${roomId}`);

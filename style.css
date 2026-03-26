@@ -109,13 +109,17 @@ header {
     color: #a5b4fc;
     padding: 0.25rem 0.75rem;
     border-radius: 2rem;
-    font-size: 0.85rem;
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(99, 102, 241, 0.1);
+    color: #818cf8;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
 .action-buttons {
     display: flex;
-    gap: 1rem;
+    gap: 10px;
 }
 
 .btn {
@@ -266,6 +270,69 @@ tbody tr {
     display: block;
 }
 
+/* 6. Results List Styling */
+.summary-line code {
+    display: block;
+    background: #0f172a;
+    padding: 8px;
+    border-radius: 4px;
+    color: #818cf8;
+    margin-bottom: 5px;
+    font-size: 11px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.group-user {
+    padding: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 13px;
+}
+
+.user-timestamp-detail {
+    margin-bottom: 10px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.user-timestamp-detail summary {
+    padding: 10px;
+    cursor: pointer;
+    font-weight: 500;
+    list-style: none;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.user-timestamp-detail summary::after {
+    content: ' ▼';
+    font-size: 10px;
+    opacity: 0.5;
+    float: right;
+}
+
+.timestamp-codes {
+    padding: 10px;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.local-friendly .summary-line {
+    background: rgba(255,255,255,0.03);
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid #6366f1;
+    font-size: 13px;
+}
+
+.local-friendly b { 
+    color: #818cf8; 
+    font-size: 11px; 
+    text-transform: uppercase; 
+    letter-spacing: 0.5px; 
+}
+
+.timestamp-codes p { margin-bottom: 5px; }
 .time-col {
     width: 70px;
     font-size: 9px;
