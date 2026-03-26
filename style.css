@@ -163,6 +163,13 @@ th {
     z-index: 10;
 }
 
+th, td {
+    border: 1px solid var(--grid-border); /* Changed from var(--border) to var(--grid-border) */
+    text-align: center;
+    position: relative;
+    padding: 0;
+}
+
 .header-date {
     font-size: 0.7rem;
     font-weight: 400;
@@ -171,24 +178,69 @@ th {
     margin-top: 2px;
 }
 
+/* Compact Input Grid */
+.input-grid-container td {
+    height: 12px; /* Super compact to avoid scrolling */
+    cursor: cell;
+}
+
+.input-grid-container .time-col {
+    font-size: 10px;
+    color: var(--text-muted); /* Changed from var(--text-dim) to var(--text-muted) */
+}
+
+/* Expanded Group Grid */
+.group-grid-container td {
+    height: 40px; /* Taller to fit names */
+    vertical-align: top;
+    font-size: 9px;
+    color: var(--text-main); /* Changed from var(--text) to var(--text-main) */
+    overflow: hidden;
+}
+
+.group-grid-container .slot-names {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 2px;
+}
+
+.group-grid-container .name-tag {
+    background: var(--primary);
+    color: white;
+    border-radius: 2px;
+    padding: 1px 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
 .time-col {
     width: 80px;
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: bold;
+    font-size: 12px;
+    position: sticky; /* Changed from sticky to position: sticky */
+    left: 0; /* Added left: 0 for sticky positioning */
+    z-index: 11; /* Ensure time column is above other cells */
 }
 
-.time-col.sub-hour {
-    font-size: 0.65rem;
-    opacity: 0.5;
-    padding-top: 0;
+.sub-hour {
+    color: var(--text-muted); /* Changed from var(--text-dim) to var(--text-muted) */
+    font-weight: normal;
+    font-size: 10px;
 }
 
-td {
-    height: 25px;
-    border: 0.5px solid var(--grid-border);
-    transition: background 0.1s;
-    cursor: cell;
-    position: relative;
+/* Cell States */
+td.selected {
+    background: var(--primary);
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.3), 0 0 10px rgba(99, 102, 241, 0.5);
+    border-color: rgba(255,255,255,0.2);
+}
+td.other-user {
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 0.4; /* Retained original opacity */
 }
 
 td:hover {
@@ -197,19 +249,8 @@ td:hover {
     box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
 }
 
-td.selected {
-    background: var(--primary);
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.3), 0 0 10px rgba(99, 102, 241, 0.5);
-    border-color: rgba(255,255,255,0.2);
-}
-
 body.dragging td {
     cursor: grabbing;
-}
-
-td.other-user {
-    background: var(--accent);
-    opacity: 0.4;
 }
 
 /* Side-by-side outputs */
@@ -219,14 +260,20 @@ td.other-user {
     gap: 1.5rem;
 }
 
+/* 5. Result List & Output */
+.result-section {
+    margin-top: 30px;
+}
+
 .list-container {
     background: rgba(0,0,0,0.2);
     padding: 1.25rem;
     border-radius: 1rem;
     min-height: 150px;
-    max-height: 300px;
+    max-height: 400px; /* Changed from 300px to 400px */
     overflow-y: auto;
     font-size: 0.9rem;
+    padding-right: 10px; /* Added padding-right */
 }
 
 .user-block {

@@ -28,15 +28,21 @@
                 <div class="action-buttons">
                     <button id="copy-link" class="btn btn-secondary">Copy Share Link</button>
                     <button id="copy-discord" class="btn btn-primary">Copy Discord Summary</button>
-                    <button id="clear-selection" class="btn btn-secondary">Clear All</button>
                 </div>
             </section>
 
-            <section class="grid-card glass">
-                <div class="grid-scroll-container">
-                    <table id="availability-grid">
-                        <thead>
-                            <tr id="grid-header">
+            <!-- TOP GRID: PERSONAL INPUT -->
+            <section class="card grid-card">
+                <div class="card-header">
+                    <h2>1. Your Availability (Click/Drag to select)</h2>
+                    <div class="controls">
+                        <button id="clear-selection" class="btn btn-secondary">Clear All</button>
+                    </div>
+                </div>
+                <div class="grid-container input-grid-container">
+                    <table id="schedule-grid">
+                        <thead id="grid-header">
+                            <tr>
                                 <th class="time-col">TIME</th>
                                 <th>MON</th>
                                 <th>TUE</th>
@@ -48,7 +54,34 @@
                             </tr>
                         </thead>
                         <tbody id="grid-body">
-                            <!-- JS will inject rows here -->
+                            <!-- JS Generated -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- BOTTOM GRID: GROUP VIEW -->
+            <section class="card grid-card result-section">
+                <div class="card-header">
+                    <h2>2. Group Summary (Visual Results)</h2>
+                    <div id="sync-status">Connecting to room...</div>
+                </div>
+                <div class="grid-container group-grid-container">
+                    <table id="group-grid">
+                        <thead id="group-grid-header">
+                            <tr>
+                                <th class="time-col">TIME</th>
+                                <th>MON</th>
+                                <th>TUE</th>
+                                <th>WED</th>
+                                <th>THU</th>
+                                <th>FRI</th>
+                                <th>SAT</th>
+                                <th>SUN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="group-grid-body">
+                            <!-- JS Generated -->
                         </tbody>
                     </table>
                 </div>

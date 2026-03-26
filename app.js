@@ -1,6 +1,5 @@
 /**
  * ChronoSync - Application Logic
- * Optimized for local file access (file://)
  */
 
 const firebaseConfig = {
@@ -13,7 +12,7 @@ const firebaseConfig = {
   measurementId: "G-1F5QTB9Q52"
 };
 
-// Initialize Firebase (Compat mode for global access)
+// Initialize Firebase
 let db = null;
 if (typeof firebase !== 'undefined') {
     firebase.initializeApp(firebaseConfig);
@@ -26,7 +25,7 @@ const syncAvailability = async (roomId, userName, slots) => {
         await db.collection("rooms").doc(roomId).set({
             [userName]: Array.from(slots)
         }, { merge: true });
-    } catch (e) { console.warn("Firebase Sync Failed:", e); }
+    } catch (e) { console.warn("Sync Failed:", e); }
 };
 
 const listenToRoom = (roomId, callback) => {
@@ -38,35 +37,29 @@ const listenToRoom = (roomId, callback) => {
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const HOURS = 24;
-const SLOTS_PER_HOUR = 4; // 15 min intervals
+const SLOTS_PER_HOUR = 4;
 
+// DOM Elements
 const gridBody = document.getElementById('grid-body');
-const timezoneIndicator = document.getElementById('timezone-indicator');
-const groupList = document.getElementById('group-list');
-const timestampList = document.getElementById('timestamp-list');
-const copyBtn = document.getElementById('copy-discord');
+const groupGridBody = document.getElementById('group-grid-body');
+const syncStatus = document.getElementById('sync-status');
+const usernameInput = document.getElementById('username');
 const clearBtn = document.getElementById('clear-selection');
 const copyLinkBtn = document.getElementById('copy-link');
-const usernameInput = document.getElementById('username');
-const syncStatus = document.getElementById('sync-status');
-const weekLabel = document.getElementById('week-label');
+const copyDiscordBtn = document.getElementById('copy-discord');
+const timezoneIndicator = document.getElementById('timezone-indicator');
 
 let isDragging = false;
 let selectionMode = true; 
 let selectedSlots = new Set(); 
-let roomData = {}; // Store all users' slots locally
+let roomData = {};
 
-// 1. Robust Timezone Detection
+// 1. Timezone & Initialization
 function detectTimezone() {
-    try {
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        if (tz) return tz;
-    } catch (e) {}
-    return "UTC";
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; }
 }
 timezoneIndicator.textContent = `Your Timezone: ${detectTimezone()}`;
 
-// 2. Build Grid
 function initGrid() {
     const now = new Date();
     const dayOffset = (now.getDay() || 7) - 1; 
@@ -74,16 +67,19 @@ function initGrid() {
     monday.setDate(now.getDate() - dayOffset);
     monday.setHours(0,0,0,0);
 
-    const mondayStr = monday.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-    weekLabel.textContent = `Schedule for Week of ${mondayStr}`;
-
-    const headerCells = document.querySelectorAll('#grid-header th:not(.time-col)');
-    headerCells.forEach((th, i) => {
+    const headerDateCells = document.querySelectorAll('.header-date');
+    headerDateCells.forEach((span, i) => {
         const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        th.innerHTML = `${DAYS[i]}<br><span class="header-date">${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}</span>`;
+        d.setDate(monday.getDate() + (i % 7));
+        span.textContent = `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
     });
 
+    buildGridTable(gridBody, true);
+    buildGridTable(groupGridBody, false);
+}
+
+function buildGridTable(container, isInput) {
+    if (!container) return;
     for (let h = 0; h < HOURS; h++) {
         for (let s = 0; s < SLOTS_PER_HOUR; s++) {
             const row = document.createElement('tr');
@@ -103,16 +99,20 @@ function initGrid() {
                 const cell = document.createElement('td');
                 const slotId = `${d}-${h * SLOTS_PER_HOUR + s}`;
                 cell.dataset.slotId = slotId;
-                cell.addEventListener('mousedown', (e) => startSelection(e, slotId));
-                cell.addEventListener('mouseover', (e) => handleMouseOver(e, slotId));
+                if (isInput) {
+                    cell.addEventListener('mousedown', (e) => startSelection(e, slotId));
+                    cell.addEventListener('mouseover', (e) => handleMouseOver(e, slotId));
+                } else {
+                    cell.innerHTML = '<div class="slot-names"></div>';
+                }
                 row.appendChild(cell);
             }
-            gridBody.appendChild(row);
+            container.appendChild(row);
         }
     }
 }
 
-// 3. Selection Logic
+// 2. Selection Logic
 function startSelection(e, slotId) {
     isDragging = true;
     document.body.classList.add('dragging');
@@ -125,23 +125,14 @@ function handleMouseOver(e, slotId) {
 }
 
 function toggleSlot(slotId, forceMode = false) {
-    const cell = document.querySelector(`[data-slot-id="${slotId}"]`);
+    const cell = document.querySelector(`#grid-body [data-slot-id="${slotId}"]`);
+    if (!cell) return;
     if (forceMode) {
-        if (selectionMode) {
-            selectedSlots.add(slotId);
-            cell.classList.add('selected');
-        } else {
-            selectedSlots.delete(slotId);
-            cell.classList.remove('selected');
-        }
+        if (selectionMode) { selectedSlots.add(slotId); cell.classList.add('selected'); }
+        else { selectedSlots.delete(slotId); cell.classList.remove('selected'); }
     } else {
-        if (selectedSlots.has(slotId)) {
-            selectedSlots.delete(slotId);
-            cell.classList.remove('selected');
-        } else {
-            selectedSlots.add(slotId);
-            cell.classList.add('selected');
-        }
+        if (selectedSlots.has(slotId)) { selectedSlots.delete(slotId); cell.classList.remove('selected'); }
+        else { selectedSlots.add(slotId); cell.classList.add('selected'); }
     }
     updateLists();
     handleSync();
@@ -152,105 +143,47 @@ window.addEventListener('mouseup', () => {
     document.body.classList.remove('dragging');
 });
 
-// 4. List Rendering Logic
+// 3. Sync & Rendering
+function renderGroupGrid() {
+    document.querySelectorAll('#group-grid .slot-names').forEach(div => div.innerHTML = "");
+
+    Object.keys(roomData).forEach(user => {
+        const slots = roomData[user];
+        if (!slots) return;
+        slots.forEach(slotId => {
+            const cell = document.querySelector(`#group-grid [data-slot-id="${slotId}"] .slot-names`);
+            if (cell) {
+                const tag = document.createElement('span');
+                tag.className = 'name-tag';
+                tag.textContent = user;
+                cell.appendChild(tag);
+            }
+        });
+    });
+}
+
 function updateLists() {
     const myName = usernameInput.value || 'Anonymous';
     roomData[myName] = Array.from(selectedSlots);
-    renderGroupAvailability();
-    renderDiscordTimestamps();
+    renderGroupGrid();
 }
 
-function renderGroupAvailability() {
-    groupList.innerHTML = "";
-    Object.keys(roomData).forEach(user => {
-        const slots = roomData[user];
-        if (!slots || slots.length === 0) return;
-
-        const container = document.createElement('div');
-        container.className = 'user-block';
-        container.innerHTML = `<h4>${user}</h4>`;
-
-        groupAdjacentSlots(slots).forEach(block => {
-            const start = new Date(getUnixForSlot(block.day, block.startSlot) * 1000);
-            const end = new Date(getUnixForSlot(block.day, block.lastSlot + 1) * 1000);
-            const timeStr = `${start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-            const dateStr = start.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'});
-            
-            const p = document.createElement('div');
-            p.textContent = `${dateStr}: ${timeStr}`;
-            container.appendChild(p);
-        });
-        groupList.appendChild(container);
-    });
-}
-
-function renderDiscordTimestamps() {
-    timestampList.innerHTML = "";
-    Object.keys(roomData).forEach(user => {
-        const slots = roomData[user];
-        if (!slots || slots.length === 0) return;
-
-        const container = document.createElement('div');
-        container.className = 'user-block';
-        container.innerHTML = `<h4>${user}</h4>`;
-
-        groupAdjacentSlots(slots).forEach(block => {
-            const span = document.createElement('span');
-            span.className = 'timestamp-text';
-            span.textContent = formatBlock(block);
-            container.appendChild(span);
-        });
-        timestampList.appendChild(container);
-    });
-}
-
-function groupAdjacentSlots(slots) {
-    const sorted = Array.from(slots).sort((a, b) => {
-        const [da, sa] = a.split('-').map(Number);
-        const [db, sb] = b.split('-').map(Number);
-        return da !== db ? da - db : sa - sb;
-    });
-
-    let blocks = [];
-    let current = null;
-    sorted.forEach(slotId => {
-        const [day, slot] = slotId.split('-').map(Number);
-        if (!current || current.day !== day || current.lastSlot + 1 !== slot) {
-            if (current) blocks.push(current);
-            current = { day, startSlot: slot, lastSlot: slot, startTime: getUnixForSlot(day, slot) };
-        } else {
-            current.lastSlot = slot;
-        }
-    });
-    if (current) blocks.push(current);
-    return blocks;
-}
-
-function getUnixForSlot(dayIndex, slotIndex) {
-    const now = new Date();
-    const dayOffset = (now.getDay() || 7) - 1; 
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - dayOffset);
-    monday.setHours(0, 0, 0, 0);
-
-    const slotMinutes = (dayIndex * 24 * 60) + (slotIndex * 15);
-    const date = new Date(monday.getTime() + slotMinutes * 60000);
-    return Math.floor(date.getTime() / 1000);
-}
-
-function formatBlock(block) {
-    const endUnix = getUnixForSlot(block.day, block.lastSlot + 1);
-    return `<t:${block.startTime}:F> to <t:${endUnix}:t>`;
-}
-
-// 5. App Controls & Sync
 const roomId = getRoomId();
+listenToRoom(roomId, (data) => {
+    roomData = data;
+    syncStatus.textContent = `Room: ${roomId} | ${Object.keys(data).length} Active`;
+    renderGroupGrid();
+});
 
-let savedName = localStorage.getItem('chronosync_name');
-if (savedName) {
-    usernameInput.value = savedName;
-    lockName();
+function getRoomId() {
+    let hash = window.location.hash.substring(1);
+    if (!hash) { hash = Math.random().toString(36).substring(2, 10); window.location.hash = hash; }
+    return hash;
 }
+
+// 4. Identity & Controls
+let savedName = localStorage.getItem('chronosync_name');
+if (savedName) { usernameInput.value = savedName; lockName(); }
 
 function lockName() {
     if (usernameInput.value.trim() === "") return;
@@ -265,9 +198,7 @@ usernameInput.addEventListener('dblclick', () => {
     usernameInput.focus();
 });
 
-usernameInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') lockName();
-});
+usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') lockName(); });
 
 let syncTimeout = null;
 function handleSync() {
@@ -279,39 +210,6 @@ function handleSync() {
     }, 1000);
 }
 
-function getRoomId() {
-    let hash = window.location.hash.substring(1);
-    if (!hash) {
-        hash = Math.random().toString(36).substring(2, 10);
-        window.location.hash = hash;
-    }
-    return hash;
-}
-
-listenToRoom(roomId, (data) => {
-    roomData = data;
-    document.querySelectorAll('.other-user').forEach(c => {
-        c.classList.remove('other-user');
-        c.title = "";
-    });
-
-    const myName = usernameInput.value || 'Anonymous';
-    Object.keys(data).forEach(user => {
-        if (user === myName) return; 
-        data[user].forEach(slotId => {
-            const cell = document.querySelector(`[data-slot-id="${slotId}"]`);
-            if (cell) {
-                cell.classList.add('other-user');
-                cell.title = (cell.title ? cell.title + ", " : "") + user;
-            }
-        });
-    });
-    
-    syncStatus.textContent = `Room: ${roomId} | ${Object.keys(data).length} User(s) Active`;
-    renderGroupAvailability();
-    renderDiscordTimestamps();
-});
-
 copyLinkBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(window.location.href).then(() => {
         const originalText = copyLinkBtn.innerText;
@@ -322,18 +220,56 @@ copyLinkBtn.addEventListener('click', () => {
 
 clearBtn.addEventListener('click', () => {
     selectedSlots.clear();
-    document.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
+    document.querySelectorAll('#grid-body .selected').forEach(c => c.classList.remove('selected'));
     updateLists();
     handleSync();
 });
 
-copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(timestampList.innerText).then(() => {
-        const originalText = copyBtn.innerText;
-        copyBtn.innerText = "COPIED!";
-        setTimeout(() => copyBtn.innerText = originalText, 2000);
+copyDiscordBtn.addEventListener('click', () => {
+    const myName = usernameInput.value || 'Anonymous';
+    const mySlots = roomData[myName] || [];
+    if (mySlots.length === 0) return;
+
+    let text = `**${myName}'s Availability:**\n`;
+    const sorted = Array.from(mySlots).sort((a, b) => {
+        const [da, sa] = a.split('-').map(Number);
+        const [db, sb] = b.split('-').map(Number);
+        return da !== db ? da - db : sa - sb;
+    });
+
+    let blocks = [];
+    let current = null;
+    sorted.forEach(slotId => {
+        const [day, slot] = slotId.split('-').map(Number);
+        if (!current || current.day !== day || current.lastSlot + 1 !== slot) {
+            if (current) blocks.push(current);
+            current = { day, startSlot: slot, lastSlot: slot, startTime: getUnixForSlot(day, slot) };
+        } else { current.lastSlot = slot; }
+    });
+    if (current) blocks.push(current);
+
+    blocks.forEach(b => {
+        const endUnix = getUnixForSlot(b.day, b.lastSlot + 1);
+        text += `- <t:${b.startTime}:F> to <t:${endUnix}:t>\n`;
+    });
+
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = copyDiscordBtn.innerText;
+        copyDiscordBtn.innerText = "COPIED!";
+        setTimeout(() => copyDiscordBtn.innerText = originalText, 2000);
     });
 });
+
+function getUnixForSlot(dayIndex, slotIndex) {
+    const now = new Date();
+    const dayOffset = (now.getDay() || 7) - 1; 
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dayOffset);
+    monday.setHours(0, 0, 0, 0);
+    const slotMinutes = (dayIndex * 24 * 60) + (slotIndex * 15);
+    const date = new Date(monday.getTime() + slotMinutes * 60000);
+    return Math.floor(date.getTime() / 1000);
+}
 
 initGrid();
 console.log(`ChronoSync initialized: ${roomId}`);
