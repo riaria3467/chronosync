@@ -260,14 +260,21 @@ tbody tr {
 }
 
 .group-grid-container .name-tag {
-    background: var(--primary);
-    color: white;
-    border-radius: 2px;
-    padding: 1px 3px;
+    color: #000;
+    text-shadow: 
+        -1px -1px 0 #fff,  
+         1px -1px 0 #fff,
+        -1px  1px 0 #fff,
+         1px  1px 0 #fff;
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 2px 4px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    margin-bottom: 2px;
 }
 
 /* 6. Results List Styling */

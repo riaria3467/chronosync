@@ -22,6 +22,17 @@ let selectedSlots = new Set();
 let roomData = {};
 let roomId = null;
 let elements = {};
+const userColors = {};
+const COLOR_PALETTE = [
+    '#f87171', // red
+    '#fb923c', // orange
+    '#fbbf24', // amber
+    '#34d399', // emerald
+    '#22d3ee', // cyan
+    '#818cf8', // indigo
+    '#c084fc', // purple
+    '#f472b6'  // pink
+];
 
 // 1. Core Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -282,10 +293,24 @@ function renderGroupGrid() {
                 const tag = document.createElement('span');
                 tag.className = 'name-tag';
                 tag.textContent = user;
+                tag.style.backgroundColor = getUserColor(user);
                 target.appendChild(tag);
             }
         });
     });
+}
+
+function getUserColor(user) {
+    if (userColors[user]) return userColors[user];
+    
+    // Simple hash to pick from palette
+    let hash = 0;
+    for (let i = 0; i < user.length; i++) {
+        hash = user.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % COLOR_PALETTE.length;
+    userColors[user] = COLOR_PALETTE[index];
+    return userColors[user];
 }
 
 function refreshUserDropdown() {
