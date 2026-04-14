@@ -14,7 +14,8 @@
     <div class="app-container">
         <header>
             <div class="logo">ChronoSync</div>
-            <p class="subtitle">Drag to select availability. Timezones handle themselves.</p>
+            <p class="subtitle">Click drop down, set your available time.</p>
+            <p class="subtitle">Different free time ranges on a day? Click the "+Add" button at the right of the row to add another time range.</p>
             <h2 id="week-label" class="week-label">Week of...</h2>
         </header>
 
@@ -42,23 +43,7 @@
             <main class="tab-content">
                 <!-- TAB 1: PERSONAL INPUT -->
                 <section id="input-tab" class="tab-pane active">
-                    <div class="grid-container input-grid-container">
-                        <table id="schedule-grid">
-                            <thead>
-                                <tr>
-                                    <th class="time-col">TIME</th>
-                                    <th>MON <span class="header-date"></span></th>
-                                    <th>TUE <span class="header-date"></span></th>
-                                    <th>WED <span class="header-date"></span></th>
-                                    <th>THU <span class="header-date"></span></th>
-                                    <th>FRI <span class="header-date"></span></th>
-                                    <th>SAT <span class="header-date"></span></th>
-                                    <th>SUN <span class="header-date"></span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="grid-body"></tbody>
-                        </table>
-                    </div>
+                    <div id="avail-form" class="avail-form"></div>
                 </section>
 
                 <!-- TAB 2: GROUP RESULTS -->

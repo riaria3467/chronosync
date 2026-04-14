@@ -15,9 +15,7 @@ const firebaseConfig = {
 // Global State
 let db = null;
 const HOURS = 24;
-const SLOTS_PER_HOUR = 4;
-let isDragging = false;
-let selectionMode = true; 
+const SLOTS_PER_HOUR = 2; // 30-min intervals
 let selectedSlots = new Set(); 
 let roomData = {};
 let roomId = null;
@@ -120,8 +118,9 @@ function setupEventListeners() {
 
     if (elements.clearBtn) {
         elements.clearBtn.addEventListener('click', () => {
+            // Clear all dropdown selections
+            document.querySelectorAll('.avail-select').forEach(s => s.value = '');
             selectedSlots.clear();
-            document.querySelectorAll('#grid-body .selected').forEach(c => c.classList.remove('selected'));
             updateLocalState();
             debouncedSync();
         });
@@ -135,46 +134,49 @@ function setupEventListeners() {
         elements.userSelector.addEventListener('change', renderUserSummary);
     }
 
-    window.addEventListener('mouseup', () => { isDragging = false; });
 }
 
-// 2. Grid Construction
-function initGrid() {
-    // Set Week Dates in Headers
+// 2. UI Construction
+const DAY_NAMES   = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const DAY_SHORT   = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+
+function getMonday() {
     const now = new Date();
-    const dayOffset = (now.getDay() || 7) - 1; 
+    const dayOffset = (now.getDay() || 7) - 1;
     const monday = new Date(now);
     monday.setDate(now.getDate() - dayOffset);
     monday.setHours(0,0,0,0);
+    return monday;
+}
 
-    const headerDates = document.querySelectorAll('.header-date');
-    let mondayDate = null;
-    let sundayDate = null;
+function initGrid() {
+    const monday = getMonday();
 
-    headerDates.forEach((span, i) => {
+    // Update week label
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    if (elements.weekLabel) {
+        const fmt = (d) => d.toLocaleString('default', { month: 'long' });
+        const mM = fmt(monday), sM = fmt(sunday);
+        elements.weekLabel.textContent = mM === sM
+            ? `Schedule: ${mM} ${monday.getDate()} – ${sunday.getDate()}`
+            : `Schedule: ${mM} ${monday.getDate()} – ${sM} ${sunday.getDate()}`;
+    }
+
+    // Build group results grid (Tab 2)
+    buildTable(elements.groupGridBody, false);
+
+    // Update group grid header dates
+    document.querySelectorAll('.header-date').forEach((span, i) => {
         const d = new Date(monday);
-        d.setDate(monday.getDate() + (i % 7));
-        if (i === 0) mondayDate = d;
-        if (i === 6) sundayDate = d;
+        d.setDate(monday.getDate() + i);
         span.textContent = `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
     });
 
-    // Update Week Label
-    if (elements.weekLabel && mondayDate && sundayDate) {
-        const mMonth = mondayDate.toLocaleString('default', { month: 'long' });
-        const sMonth = sundayDate.toLocaleString('default', { month: 'long' });
-        if (mMonth === sMonth) {
-            elements.weekLabel.textContent = `Schedule: ${mMonth} ${mondayDate.getDate()} - ${sundayDate.getDate()}`;
-        } else {
-            elements.weekLabel.textContent = `Schedule: ${mMonth} ${mondayDate.getDate()} - ${sMonth} ${sundayDate.getDate()}`;
-        }
-    }
+    // Build availability form (Tab 1)
+    buildAvailabilityForm(monday);
 
-    // Build Tables
-    buildTable(elements.gridBody, true);
-    buildTable(elements.groupGridBody, false);
-
-    // Timezone 
+    // Timezone
     if (elements.timezoneIndicator) {
         try {
             const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -183,64 +185,157 @@ function initGrid() {
     }
 }
 
-function buildTable(container, isInput) {
+function slotLabel(slot) {
+    const totalMins = slot * 30;
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    const ampm = h < 12 ? 'AM' : 'PM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m.toString().padStart(2,'0')} ${ampm}`;
+}
+
+function dropdownOptions(selectedVal) {
+    let html = `<option value="">--</option>`;
+    for (let s = 0; s < HOURS * SLOTS_PER_HOUR; s++) {
+        const sel = s === selectedVal ? 'selected' : '';
+        html += `<option value="${s}" ${sel}>${slotLabel(s)}</option>`;
+    }
+    return html;
+}
+
+function buildAvailabilityForm(monday) {
+    const container = document.getElementById('avail-form');
     if (!container) return;
-    container.innerHTML = ""; // Clear
+    container.innerHTML = '';
+
+    for (let d = 0; d < 7; d++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + d);
+        const dateLabel = date.toLocaleString('default', { month: 'short', day: 'numeric' });
+
+        const dayRow = document.createElement('div');
+        dayRow.className = 'avail-day-row';
+        dayRow.dataset.dayIndex = d;
+        dayRow.innerHTML = `
+            <div class="avail-day-label">
+                <span class="avail-day-name">${DAY_NAMES[d]}</span>
+                <span class="avail-day-date">${dateLabel}</span>
+            </div>
+            <div class="avail-slots" data-day="${d}">
+                <!-- slots rendered here -->
+            </div>
+            <button class="btn-add-slot" data-day="${d}" title="Add another time range">+ Add</button>
+        `;
+        container.appendChild(dayRow);
+
+        // Start with one empty slot row per day
+        addSlotRow(dayRow.querySelector('.avail-slots'), d);
+
+        dayRow.querySelector('.btn-add-slot').addEventListener('click', (e) => {
+            addSlotRow(dayRow.querySelector('.avail-slots'), d);
+        });
+    }
+}
+
+function addSlotRow(slotsContainer, dayIndex) {
+    const row = document.createElement('div');
+    row.className = 'avail-slot-entry';
+    row.innerHTML = `
+        <select class="avail-select start-select" data-day="${dayIndex}">
+            ${dropdownOptions('')}
+        </select>
+        <span class="avail-to">to</span>
+        <select class="avail-select end-select" data-day="${dayIndex}">
+            ${dropdownOptions('')}
+        </select>
+        <span class="avail-time-preview"></span>
+        <span class="avail-error"></span>
+        <button class="btn-remove-slot" title="Remove">✕</button>
+    `;
+    slotsContainer.appendChild(row);
+
+    const startSel = row.querySelector('.start-select');
+    const endSel   = row.querySelector('.end-select');
+    const preview  = row.querySelector('.avail-time-preview');
+    const errSpan  = row.querySelector('.avail-error');
+
+    function updatePreview() {
+        const sv = startSel.value;
+        const ev = endSel.value;
+        if (sv === '' || ev === '') {
+            preview.textContent = '';
+            errSpan.innerHTML = '<span class="warn-icon">⚠</span> END MUST BE AFTER START <span class="warn-icon">⚠</span>' ;
+        }
+        const s = parseInt(sv);
+        const e = parseInt(ev);
+        if (e <= s) {
+            preview.textContent = '';
+            errSpan.textContent = '⚠ END MUST BE AFTER START ⚠';
+        } else {
+            errSpan.textContent = '';
+            const totalMins = (e - s) * 30;
+            const hrs = Math.floor(totalMins / 60);
+            const mins = totalMins % 60;
+            const hPart = hrs  > 0 ? `${hrs} ${hrs  === 1 ? 'hour'   : 'hours'}`   : '';
+            const mPart = mins > 0 ? `${mins} ${mins === 1 ? 'minute' : 'minutes'}` : '';
+            const dur = hPart && mPart ? `${hPart} & ${mPart}` : hPart || mPart;
+            preview.textContent = dur;
+        }
+    }
+
+    row.querySelectorAll('.avail-select').forEach(sel => {
+        sel.addEventListener('change', () => { updatePreview(); recalcSlotsFromForm(); });
+    });
+    row.querySelector('.btn-remove-slot').addEventListener('click', () => {
+        row.remove();
+        recalcSlotsFromForm();
+    });
+}
+
+function recalcSlotsFromForm() {
+    selectedSlots.clear();
+    document.querySelectorAll('.avail-slot-entry').forEach(row => {
+        const startSel = row.querySelector('.start-select');
+        const endSel   = row.querySelector('.end-select');
+        const d = parseInt(startSel.dataset.day);
+        const startS = parseInt(startSel.value);
+        const endS   = parseInt(endSel.value);
+        if (isNaN(startS) || isNaN(endS) || endS <= startS) return;
+        for (let s = startS; s < endS; s++) {
+            selectedSlots.add(`${d}-${s}`);
+        }
+    });
+    updateLocalState();
+    debouncedSync();
+}
+
+
+function buildTable(container, isInput) {
+    if (!container || isInput) return; // Input no longer uses a table
+    container.innerHTML = '';
     for (let h = 0; h < HOURS; h++) {
         for (let s = 0; s < SLOTS_PER_HOUR; s++) {
             const row = document.createElement('tr');
-            
-            // Time Col
             const tCol = document.createElement('td');
             tCol.className = 'time-col';
-            if (s === 0) {
-                const hourLabel = h % 12 || 12;
-                const ampm = h < 12 ? 'AM' : 'PM';
-                tCol.innerHTML = `<b>${hourLabel}:00</b> <span class='ampm'>${ampm}</span>`;
-            } else {
-                tCol.textContent = `:${s * 15}`;
-                tCol.classList.add('sub-hour');
-            }
+            // Show full time label on every row (30-min intervals)
+            const totalMins = (h * SLOTS_PER_HOUR + s) * 30;
+            const hh = Math.floor(totalMins / 60);
+            const mm = totalMins % 60;
+            const ampm = hh < 12 ? 'AM' : 'PM';
+            const h12 = hh % 12 || 12;
+            tCol.innerHTML = `<b>${h12}:${mm.toString().padStart(2,'0')}</b><span class='ampm'> ${ampm}</span>`;
             row.appendChild(tCol);
-
-            // Day Cols
             for (let d = 0; d < 7; d++) {
                 const cell = document.createElement('td');
                 const sid = `${d}-${h * SLOTS_PER_HOUR + s}`;
                 cell.dataset.slotId = sid;
-                if (isInput) {
-                    cell.addEventListener('mousedown', (e) => {
-                        isDragging = true;
-                        selectionMode = !selectedSlots.has(sid);
-                        toggleSlot(sid);
-                    });
-                    cell.addEventListener('mouseover', () => {
-                        if (isDragging) toggleSlot(sid, true);
-                    });
-                } else {
-                    cell.innerHTML = '<div class="slot-names"></div>';
-                }
+                cell.innerHTML = '<div class="slot-names"></div>';
                 row.appendChild(cell);
             }
             container.appendChild(row);
         }
     }
-}
-
-function toggleSlot(sid, forceMode = false) {
-    const cell = document.querySelector(`#grid-body [data-slot-id="${sid}"]`);
-    if (!cell) return;
-    
-    if (forceMode) {
-        if (selectionMode) { selectedSlots.add(sid); cell.classList.add('selected'); }
-        else { selectedSlots.delete(sid); cell.classList.remove('selected'); }
-    } else {
-        if (selectedSlots.has(sid)) { selectedSlots.delete(sid); cell.classList.remove('selected'); }
-        else { selectedSlots.add(sid); cell.classList.add('selected'); }
-    }
-    
-    updateLocalState();
-    debouncedSync();
 }
 
 // 3. Synchronization
@@ -449,7 +544,7 @@ function getUnixAtSlot(dayIdx, slotIdx) {
     const monday = new Date(now);
     monday.setDate(now.getDate() - dayOffset);
     monday.setHours(0, 0, 0, 0);
-    const date = new Date(monday.getTime() + (dayIdx * 24 * 60 + slotIdx * 15) * 60000);
+    const date = new Date(monday.getTime() + (dayIdx * 24 * 60 + slotIdx * 30) * 60000);
     return Math.floor(date.getTime() / 1000);
 }
 
