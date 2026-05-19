@@ -118,10 +118,41 @@ header {
     width: 250px;
 }
 
+.identity-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.identity-input {
+    width: auto;
+    min-width: 150px;
+}
+
+.pin-input {
+    width: 150px;
+}
+
+.btn-lock {
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    white-space: nowrap;
+}
+
+.auth-error {
+    color: #f87171;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+    min-height: 20px;
+}
+
 .glass-input.locked {
     border-color: rgba(16, 185, 129, 0.5);
     background: rgba(16, 185, 129, 0.05);
     cursor: default;
+    color: #10b981;
 }
 
 .badge {
@@ -203,16 +234,17 @@ header {
     flex-direction: column;
 }
 
-/* 4. Grid System - Zero Scroll */
+/* 4. Grid System */
 .grid-container {
     flex: 1;
     min-height: 200px; /* Safety fallback */
     overflow-x: auto;
-    overflow-y: hidden; /* NO SCROLL */
+    overflow-y: hidden; /* NO SCROLL for input grid */
     background: rgba(0, 0, 0, 0.2);
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.05);
 }
+
 
 table {
     width: 100%;
@@ -266,6 +298,14 @@ tbody tr {
 }
 
 /* ── Availability Form (Tab 1) ── */
+.tab-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0;
+}
+
 .avail-form {
     display: flex;
     flex-direction: column;
@@ -273,6 +313,13 @@ tbody tr {
     padding: 10px 0;
     overflow-y: auto;
     flex: 1;
+    transition: opacity 0.3s;
+}
+
+.avail-form.readonly {
+    opacity: 0.6;
+    pointer-events: none;
+    filter: grayscale(0.5);
 }
 
 .avail-day-row {
@@ -400,9 +447,8 @@ tbody tr {
     cursor: pointer;
     font-weight: 500;
     transition: all 0.2s;
-    align-self: flex-start;
-    margin-top: 6px;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .btn-add-slot:hover {
@@ -415,21 +461,30 @@ tbody tr {
     background: rgba(239,68,68,0.1);
     border: 1px solid rgba(239,68,68,0.2);
     color: #f87171;
-    border-radius: 6px;
-    width: 26px;
-    height: 26px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
+    border-radius: 8px;
+    padding: 6px 12px;
     font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
     transition: all 0.2s;
+    white-space: nowrap;
     flex-shrink: 0;
 }
 
-.btn-remove-slot:hover {
+.btn-remove-slot:hover:not(:disabled) {
     background: rgba(239,68,68,0.25);
     border-color: #f87171;
+}
+
+.btn-remove-slot:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Hide preview/error spans when empty */
+.avail-time-preview:empty,
+.avail-error:empty {
+    display: none;
 }
 
 
@@ -497,12 +552,10 @@ tbody tr {
 
 /* 6. Results List Styling */
 .summary-line code {
-    display: block;
     background: #0f172a;
-    padding: 8px;
+    padding: 4px 8px;
     border-radius: 4px;
     color: #818cf8;
-    margin-bottom: 5px;
     font-size: 11px;
     border: 1px solid rgba(255,255,255,0.05);
 }
@@ -521,18 +574,18 @@ tbody tr {
 }
 
 .user-timestamp-detail summary {
-    padding: 10px;
+    padding: 10px 15px;
     cursor: pointer;
-    font-weight: 500;
+    font-weight: 600;
     list-style: none;
     border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.user-timestamp-detail summary::after {
-    content: ' ▼';
-    font-size: 10px;
-    opacity: 0.5;
-    float: right;
+.user-timestamp-detail summary::-webkit-details-marker {
+    display: none;
 }
 
 .timestamp-codes {
@@ -653,7 +706,59 @@ body.dragging td {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
-    margin-top: 3rem;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 0.5rem;
+}
+
+.section-header h3 {
+    margin-bottom: 0 !important;
+    border-bottom: none !important;
+}
+
+.btn-small {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+    border-radius: 0.5rem;
+}
+
+.copy-btn {
+    opacity: 0;
+    transition: opacity 0.2s;
+    margin-left: 8px;
+}
+
+.summary-line:hover .copy-btn,
+.user-timestamp-detail:hover .copy-btn {
+    opacity: 1;
+}
+
+.timestamp-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.2);
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+
+.timestamp-text-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.readable-time {
+    font-size: 0.7rem;
+    color: var(--accent);
+    font-weight: 500;
 }
 
 /* 5. Result List & Output */
@@ -950,10 +1055,10 @@ body.dragging td {
     }
 
     .btn-remove-slot {
-        grid-column: 2 / 3;
-        margin-left: auto;
-        width: 36px;
-        height: 36px;
+        grid-column: 1 / -1;
+        width: auto;
+        height: auto;
+        padding: 8px 12px;
     }
 
     .avail-time-preview,
@@ -962,14 +1067,10 @@ body.dragging td {
     }
 
     .btn-add-slot {
+        grid-column: 1 / -1;
         width: 100%;
         text-align: center;
         padding: 10px;
-    }
-
-    .btn-remove-slot {
-        width: 32px;
-        height: 32px;
     }
 
     /* Side-by-side sections padding */

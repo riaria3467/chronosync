@@ -22,7 +22,12 @@
         <main>
             <section class="controls-card glass">
                 <div class="user-info">
-                    <input type="text" id="username" placeholder="Enter your name..." class="glass-input">
+                    <div class="identity-group">
+                        <input type="text" id="username" name="username" autocomplete="username" placeholder="Enter your name..." class="glass-input identity-input">
+                        <input type="password" id="user-pin" name="user-pin" autocomplete="current-password" placeholder="Password / PIN" class="glass-input identity-input pin-input">
+                        <button id="lock-identity" class="btn btn-primary btn-lock">Save / Unlock</button>
+                    </div>
+                    <div id="auth-error" class="auth-error"></div>
                     <div id="timezone-indicator" class="badge">Your Timezone: Detecting...</div>
                 </div>
                 
@@ -37,13 +42,19 @@
             <div class="tabs">
                 <button class="tab-btn active" data-tab="input-tab">1. Your Input</button>
                 <button class="tab-btn" data-tab="results-tab">2. Group Results</button>
+                <button class="tab-btn" data-tab="timestamps-tab">3. Discord Timestamps</button>
                 <div id="sync-status">Connecting...</div>
             </div>
 
             <main class="tab-content">
                 <!-- TAB 1: PERSONAL INPUT -->
                 <section id="input-tab" class="tab-pane active">
-                    <div id="avail-form" class="avail-form"></div>
+                    <div class="tab-header-actions">
+                        <button id="edit-schedule" class="btn btn-secondary">✎ Edit My Schedule</button>
+                        <button id="save-schedule" class="btn btn-primary" style="display: none;">💾 Save Changes</button>
+                        <div id="edit-status" class="badge" style="display: none;">Editing Mode</div>
+                    </div>
+                    <div id="avail-form" class="avail-form readonly"></div>
                 </section>
 
                 <!-- TAB 2: GROUP RESULTS -->
@@ -79,23 +90,28 @@
                         </div>
                     </div>
                 </section>
+                <!-- TAB 3: DISCORD TIMESTAMPS -->
+                <section id="timestamps-tab" class="tab-pane">
+                    <div class="side-by-side">
+                        <section class="availability-card glass">
+                            <h3>Shared Group Availability (All Members)</h3>
+                            <div id="group-list" class="list-container">
+                                Waiting for others...
+                            </div>
+                        </section>
+        
+                        <section class="timestamps-card glass">
+                            <div class="section-header">
+                                <h3>Discord Timestamps (Per User)</h3>
+                                <button id="copy-all-timestamps" class="btn btn-small btn-secondary">Copy All</button>
+                            </div>
+                            <div id="timestamp-list" class="list-container">
+                                Select blocks to see codes...
+                            </div>
+                        </section>
+                    </div>
+                </section>
             </main>
-
-            <div class="side-by-side">
-                <section class="availability-card glass">
-                    <h3>Shared Group Availability (All Members)</h3>
-                    <div id="group-list" class="list-container">
-                        Waiting for others...
-                    </div>
-                </section>
-
-                <section class="timestamps-card glass">
-                    <h3>Discord Timestamps (Per User)</h3>
-                    <div id="timestamp-list" class="list-container">
-                        Select blocks to see codes...
-                    </div>
-                </section>
-            </div>
         </main>
 
         <footer>
