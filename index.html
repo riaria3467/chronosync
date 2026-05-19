@@ -11,7 +11,32 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app-container">
+    <div id="landing-page" class="landing-page glass" style="display: none;">
+        <div class="landing-content">
+            <h1 class="logo" style="text-align: center; font-size: 3rem; margin-bottom: 0.5rem;">ChronoSync</h1>
+            <p class="subtitle" style="text-align: center; margin-bottom: 2rem;">Select a week to start scheduling.</p>
+            
+            <div class="calendar-picker">
+                <div id="calendar-header" class="calendar-header">
+                    <button id="prev-month" class="btn btn-secondary btn-small">&lt;</button>
+                    <h3 id="current-month-label">Month Year</h3>
+                    <button id="next-month" class="btn btn-secondary btn-small">&gt;</button>
+                </div>
+                <div class="calendar-grid-header">
+                    <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                </div>
+                <div id="calendar-grid" class="calendar-grid">
+                    <!-- JS will populate -->
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <button id="create-schedule-btn" class="btn btn-primary" style="font-size: 1.2rem; padding: 1rem 2rem;" disabled>Create Schedule</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" style="display: none;">
         <header>
             <div class="logo">ChronoSync</div>
             <p class="subtitle">Click drop down, set your available time.</p>

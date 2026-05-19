@@ -13,6 +13,8 @@ const firebaseConfig = {
 };
 
 // Global State
+let currentRoomMonday = null;
+let selectedWeekStart = null;
 let db = null;
 const HOURS = 24;
 const SLOTS_PER_HOUR = 2; // 30-min intervals
@@ -38,6 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Cache DOM Elements
     elements = {
+        landingPage: document.getElementById('landing-page'),
+        appContainer: document.querySelector('.app-container'),
+        calendarGrid: document.getElementById('calendar-grid'),
+        currentMonthLabel: document.getElementById('current-month-label'),
+        prevMonthBtn: document.getElementById('prev-month'),
+        nextMonthBtn: document.getElementById('next-month'),
+        createScheduleBtn: document.getElementById('create-schedule-btn'),
         gridBody: document.getElementById('grid-body'),
         groupGridBody: document.getElementById('group-grid-body'),
         syncStatus: document.getElementById('sync-status'),
@@ -71,10 +80,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Hash/Room ID Setup
-    roomId = window.location.hash.substring(1).split('#')[0];
-    if (!roomId) {
-        roomId = Math.random().toString(36).substring(2, 10);
-        window.location.hash = roomId;
+    const hash = window.location.hash.substring(1);
+    if (!hash) {
+        if (elements.landingPage && elements.appContainer) {
+            elements.landingPage.style.display = 'flex';
+            elements.appContainer.style.display = 'none';
+            initCalendarPicker();
+        }
+        return; // Wait for user to create schedule
+    }
+
+    // Parse hash
+    const parts = hash.split('_');
+    roomId = parts[0];
+    
+    if (parts.length > 1) {
+        const dateParts = parts[1].split('-');
+        if (dateParts.length === 3) {
+            currentRoomMonday = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+        }
+    }
+
+    if (!currentRoomMonday) {
+        // Fallback
+        const now = new Date();
+        const dayOffset = (now.getDay() || 7) - 1;
+        currentRoomMonday = new Date(now);
+        currentRoomMonday.setDate(now.getDate() - dayOffset);
+        currentRoomMonday.setHours(0,0,0,0);
+    }
+
+    if (elements.landingPage && elements.appContainer) {
+        elements.landingPage.style.display = 'none';
+        elements.appContainer.style.display = 'block';
     }
 
     // UI Listeners
@@ -88,6 +126,111 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log(`ChronoSync initialized for room: ${roomId}`);
 });
+
+// --- Landing Page Calendar Logic ---
+let calendarCurrentDate = new Date();
+calendarCurrentDate.setDate(1); // Start of current month
+
+function initCalendarPicker() {
+    renderCalendar(calendarCurrentDate);
+    
+    elements.prevMonthBtn.addEventListener('click', () => {
+        calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() - 1);
+        renderCalendar(calendarCurrentDate);
+    });
+    
+    elements.nextMonthBtn.addEventListener('click', () => {
+        calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + 1);
+        renderCalendar(calendarCurrentDate);
+    });
+    
+    elements.createScheduleBtn.addEventListener('click', () => {
+        if (!selectedWeekStart) return;
+        const y = selectedWeekStart.getFullYear();
+        const m = String(selectedWeekStart.getMonth() + 1).padStart(2, '0');
+        const d = String(selectedWeekStart.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+        
+        const newRoomId = Math.random().toString(36).substring(2, 10);
+        window.location.hash = `${newRoomId}_${dateStr}`;
+        window.location.reload(); // Reload to hit the hash init path
+    });
+}
+
+function renderCalendar(date) {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    elements.currentMonthLabel.textContent = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+    elements.calendarGrid.innerHTML = '';
+    
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    
+    // Get the Monday before the 1st
+    const startDate = new Date(firstDayOfMonth);
+    const dayOffset = (startDate.getDay() || 7) - 1;
+    startDate.setDate(startDate.getDate() - dayOffset);
+    
+    // Get the Sunday after the last day
+    const endDate = new Date(lastDayOfMonth);
+    const endDayOffset = 7 - (endDate.getDay() || 7);
+    endDate.setDate(endDate.getDate() + endDayOffset);
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    // Get the Monday of 1 week ago (limit)
+    const oneWeekAgoMonday = new Date(today);
+    const todayOffset = (oneWeekAgoMonday.getDay() || 7) - 1;
+    oneWeekAgoMonday.setDate(oneWeekAgoMonday.getDate() - todayOffset - 7);
+    oneWeekAgoMonday.setHours(0,0,0,0);
+    
+    let currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+        const weekRow = document.createElement('div');
+        weekRow.className = 'calendar-week-row';
+        
+        const weekMonday = new Date(currentDate);
+        
+        // Check if disabled
+        if (weekMonday < oneWeekAgoMonday) {
+            weekRow.classList.add('disabled');
+        } else {
+            weekRow.addEventListener('click', () => {
+                document.querySelectorAll('.calendar-week-row').forEach(r => r.classList.remove('selected'));
+                weekRow.classList.add('selected');
+                selectedWeekStart = weekMonday;
+                elements.createScheduleBtn.disabled = false;
+            });
+        }
+        
+        // Selected state preservation across month changes
+        if (selectedWeekStart && weekMonday.getTime() === selectedWeekStart.getTime()) {
+            weekRow.classList.add('selected');
+        }
+
+        for (let i = 0; i < 7; i++) {
+            const dayCell = document.createElement('div');
+            dayCell.className = 'calendar-day';
+            dayCell.textContent = currentDate.getDate();
+            
+            if (currentDate.getMonth() !== month) {
+                dayCell.classList.add('other-month');
+            }
+            if (currentDate.getTime() === today.getTime()) {
+                dayCell.classList.add('today');
+            }
+            
+            weekRow.appendChild(dayCell);
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        elements.calendarGrid.appendChild(weekRow);
+    }
+}
+
 
 function setupEventListeners() {
     // Tab switching
@@ -168,12 +311,7 @@ const DAY_NAMES   = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturda
 const DAY_SHORT   = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 
 function getMonday() {
-    const now = new Date();
-    const dayOffset = (now.getDay() || 7) - 1;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - dayOffset);
-    monday.setHours(0,0,0,0);
-    return monday;
+    return currentRoomMonday;
 }
 
 function initGrid() {
@@ -760,11 +898,7 @@ function groupSlotsIntoBlocks(slots) {
 }
 
 function getUnixAtSlot(dayIdx, slotIdx) {
-    const now = new Date();
-    const dayOffset = (now.getDay() || 7) - 1; 
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - dayOffset);
-    monday.setHours(0, 0, 0, 0);
+    const monday = currentRoomMonday;
     const date = new Date(monday.getTime() + (dayIdx * 24 * 60 + slotIdx * 30) * 60000);
     return Math.floor(date.getTime() / 1000);
 }
